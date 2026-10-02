@@ -1,0 +1,10 @@
+## Interface: 30300
+## Title: |TInterface\AddOns\Morphinator3000-SX\sheep:0|t |cff00ccff<|r|cffff2020Morphinator|r|cff00ccff>|r |cffa335ee3000-SX|r
+## Notes: Morphing Tool for lazy GM's
+## Author: Jadaiah
+## Version: 1.2.0
+## SavedVariables: MorphinatorDB
+
+Data.lua
+Core.lua
+UI.lua
