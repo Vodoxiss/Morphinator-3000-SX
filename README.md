@@ -67,7 +67,3 @@ Morphinator3000-SX/
 
 3. **Apply Morph**:
    * Click to apply the morph command directly to your character or selected target.
-
-## 📄 License
-
-Distributed under the **MIT License**.
