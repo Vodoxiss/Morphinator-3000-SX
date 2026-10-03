@@ -1,11 +1,22 @@
 --[[
     Morphinator 3000-SX - Core.lua
-    Minimap button, commande /morph, initialisation des SavedVariables.
+    Minimap button, /morph command, SavedVariables initialization.
 --]]
 
 local ADDON_NAME = "Morphinator3000-SX"
 
 MorphinatorDB = MorphinatorDB or {}
+if MorphinatorDB.debug == nil then
+    MorphinatorDB.debug = false
+end
+
+-- Conditional print: does nothing until debug mode is enabled from the
+-- Blizzard options panel.
+function Morphinator_DebugPrint(...)
+    if MorphinatorDB.debug then
+        print("|cff33ff99[Morphinator DEBUG]|r", ...)
+    end
+end
 
 -- ============================================================
 -- Minimap Button
@@ -66,8 +77,8 @@ end)
 minimapButton:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:AddLine("Morphinator 3000-SX", 1, 0.82, 0)
-    GameTooltip:AddLine("Clic gauche : ouvrir / fermer", 1, 1, 1)
-    GameTooltip:AddLine("Glisser-deposer : deplacer le bouton", 0.7, 0.7, 0.7)
+    GameTooltip:AddLine("Left-click: toggle window", 1, 1, 1)
+    GameTooltip:AddLine("Drag: move this button", 0.7, 0.7, 0.7)
     GameTooltip:Show()
 end)
 
@@ -84,7 +95,7 @@ SlashCmdList["MORPHINATOR"] = function(msg)
 end
 
 -- ============================================================
--- Initialisation
+-- Initialization
 -- ============================================================
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("ADDON_LOADED")

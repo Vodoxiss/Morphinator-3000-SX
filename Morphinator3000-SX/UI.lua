@@ -1,22 +1,25 @@
 --[[
     Morphinator 3000-SX - UI.lua
-    Interface inspiree du Mount Journal : liste a gauche + apercu du modele a droite.
+    Searchable list of morphs (name + ID) with direct application.
+    No 3D preview: not reliably possible on this client for an arbitrary ID
+    (SetCreature requires a local cache, SetDisplayInfo does not exist,
+    SetUnit only works on a unit that is actually present).
 --]]
 
 local ROW_HEIGHT   = 20
 local NUM_ROWS     = 18
 local PLACEHOLDER_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 
-local sortedMorphs = {}      -- MorphinatorData trie alphabetiquement
-local displayList  = {}      -- sous-ensemble filtre (recherche) affiche actuellement
-local selectedEntry = nil    -- entree {id, name} actuellement selectionnee
+local sortedMorphs = {}      -- MorphinatorData sorted alphabetically
+local displayList  = {}      -- filtered (search) subset currently shown
+local selectedEntry = nil    -- currently selected {id, name} entry
 local sortDescending = false
 
-local mainFrame, listRows, modelFrame
+local mainFrame, listRows
 local nameText, idText, totalText, searchBox
 
 -- ============================================================
--- Tri / filtre
+-- Sort / filter
 -- ============================================================
 local function BuildSortedList()
     sortedMorphs = {}
@@ -45,38 +48,34 @@ local function RefreshDisplayList()
         end
     end
     if totalText then
-        totalText:SetText("Total Morphs  " .. #MorphinatorData .. "   (" .. #displayList .. " displayed)")
+        totalText:SetText("Total Morphs  " .. #MorphinatorData .. "   (" .. #displayList .. " shown)")
     end
 end
 
+-- Applies the morph to the player (DisplayID).
+local function ApplyMorph(entry)
+    if not entry then return end
+    SendChatMessage(".morph " .. entry.id, "SAY")
+    Morphinator_DebugPrint("Morph applied: " .. entry.name .. " (Entry " .. (entry.entry or "?") .. ", DisplayID " .. entry.id .. ")")
+end
+
 -- ============================================================
--- Selection / apercu
+-- Selection (list click)
 -- ============================================================
 local function SelectMorph(entry)
     selectedEntry = entry
     if not entry then
         nameText:SetText("")
         idText:SetText("")
-        modelFrame:ClearModel()
         return
     end
-    
-    nameText:SetText(entry.name)
-    idText:SetText("DisplayID : " .. entry.id)
 
-    -- Effacer l'ancien modèle et appliquer le nouveau DisplayID
-    modelFrame:ClearModel()
-    modelFrame:SetDisplayInfo(entry.id)
-    
-    -- Ajuster la position, la rotation et l'échelle de la caméra
-    modelFrame:SetPosition(0, 0, 0)
-    modelFrame:SetFacing(0)
-    modelFrame:SetModelScale(1)
-    modelFrame:SetCamDistanceScale(1)
+    nameText:SetText(entry.name)
+    idText:SetText("Entry : " .. (entry.entry or "?") .. "   |   DisplayID : " .. entry.id)
 end
 
 -- ============================================================
--- Liste (FauxScrollFrame)
+-- List (FauxScrollFrame)
 -- ============================================================
 local function UpdateListRows()
     local offset = FauxScrollFrame_GetOffset(mainFrame.scrollFrame)
@@ -131,8 +130,7 @@ local function CreateListRow(parent, index)
     highlight:SetTexture(1, 1, 1, 0.08)
     highlight:SetBlendMode("ADD")
 
-    -- Surbrillance de SELECTION : uniquement visible sur la ligne selectionnee
-    -- (geree explicitement dans UpdateListRows/SelectMorph, jamais au survol)
+    -- SELECTION highlight: only visible on the selected row
     local selectedTexture = row:CreateTexture(nil, "BORDER")
     selectedTexture:SetAllPoints()
     selectedTexture:SetTexture(1, 0.82, 0, 0.35)
@@ -150,7 +148,7 @@ local function CreateListRow(parent, index)
         if self.entry then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:AddLine(self.entry.name, 1, 0.82, 0)
-            GameTooltip:AddLine("DisplayID : " .. self.entry.id, 0.8, 0.8, 0.8)
+            GameTooltip:AddLine("Entry : " .. (self.entry.entry or "?") .. "   DisplayID : " .. self.entry.id, 0.8, 0.8, 0.8)
             GameTooltip:Show()
         end
     end)
@@ -160,11 +158,11 @@ local function CreateListRow(parent, index)
 end
 
 -- ============================================================
--- Construction de la fenetre
+-- Window construction
 -- ============================================================
 local function CreateMainFrame()
     local f = CreateFrame("Frame", "MorphinatorMainFrame", UIParent)
-    f:SetSize(700, 520)
+    f:SetSize(460, 620)
     f:SetPoint("CENTER")
     f:SetMovable(true)
     f:EnableMouse(true)
@@ -182,7 +180,7 @@ local function CreateMainFrame()
         insets = { left = 11, right = 11, top = 11, bottom = 11 },
     })
 
-    -- Barre de titre
+    -- Title bar
     local titleBg = f:CreateTexture(nil, "ARTWORK")
     titleBg:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
     titleBg:SetSize(300, 64)
@@ -201,7 +199,7 @@ local function CreateMainFrame()
     totalText:SetPoint("TOPLEFT", 24, -22)
     totalText:SetTextColor(1, 0.82, 0)
 
-    -- Barre de recherche
+    -- Search bar
     searchBox = CreateFrame("EditBox", "MorphinatorSearchBox", f, "InputBoxTemplate")
     searchBox:SetSize(220, 20)
     searchBox:SetPoint("TOPLEFT", 34, -66)
@@ -214,25 +212,66 @@ local function CreateMainFrame()
 
     local searchLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     searchLabel:SetPoint("BOTTOMLEFT", searchBox, "TOPLEFT", -2, 2)
-    searchLabel:SetText("Recherche")
+    searchLabel:SetText("Search")
 
-    -- Bouton tri A-Z / Z-A
+    -- Sort A-Z / Z-A button
     local sortButton = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     sortButton:SetSize(90, 22)
     sortButton:SetPoint("LEFT", searchBox, "RIGHT", 10, 0)
-    sortButton:SetText("Tri A-Z")
+    sortButton:SetText("Sort A-Z")
     sortButton:SetScript("OnClick", function(self)
         sortDescending = not sortDescending
-        self:SetText(sortDescending and "Tri Z-A" or "Tri A-Z")
+        self:SetText(sortDescending and "Sort Z-A" or "Sort A-Z")
         BuildSortedList()
         RefreshDisplayList()
         UpdateListRows()
     end)
 
-    -- Panneau liste (gauche)
+    -- Action panel (name, ID and buttons together in ONE frame), right under the search bar
+    local actionPanel = CreateFrame("Frame", nil, f)
+    actionPanel:SetSize(400, 104)
+    actionPanel:SetPoint("TOPLEFT", 24, -96)
+    actionPanel:SetBackdrop({
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    actionPanel:SetBackdropColor(0.15, 0.05, 0.05, 0.9)
+
+    nameText = actionPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    nameText:SetPoint("TOP", 0, -10)
+    nameText:SetWidth(380)
+
+    idText = actionPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    idText:SetPoint("TOP", nameText, "BOTTOM", 0, -4)
+    idText:SetTextColor(1, 0.82, 0)
+
+    local morphButton = CreateFrame("Button", nil, actionPanel, "UIPanelButtonTemplate")
+    morphButton:SetSize(180, 26)
+    morphButton:SetPoint("BOTTOMLEFT", 10, 10)
+    morphButton:SetText("Morph now!")
+    morphButton:SetScript("OnClick", function()
+        if selectedEntry then
+            ApplyMorph(selectedEntry)
+        end
+    end)
+
+    local demorphButton = CreateFrame("Button", nil, actionPanel, "UIPanelButtonTemplate")
+    demorphButton:SetSize(180, 26)
+    demorphButton:SetPoint("BOTTOMRIGHT", -10, 10)
+    demorphButton:SetText("Un-morph")
+    demorphButton:SetScript("OnClick", function()
+        SendChatMessage(".demorph", "SAY")
+        Morphinator_DebugPrint("Un-morph sent")
+    end)
+
+    -- List panel, below the action panel. Sized to fully contain NUM_ROWS
+    -- rows (18 * 20px = 360) plus the scroll frame's 6px top/bottom padding,
+    -- so rows never overflow past the panel's own background.
     local listPanel = CreateFrame("Frame", nil, f)
-    listPanel:SetSize(360, 400)
-    listPanel:SetPoint("TOPLEFT", 24, -86)
+    listPanel:SetSize(400, NUM_ROWS * ROW_HEIGHT + 12)
+    listPanel:SetPoint("TOPLEFT", actionPanel, "BOTTOMLEFT", 0, -12)
     listPanel:SetBackdrop({
         bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -254,80 +293,6 @@ local function CreateMainFrame()
         listRows[i] = CreateListRow(listPanel, i)
     end
 
-    -- Panneau apercu (droite)
-    local previewPanel = CreateFrame("Frame", nil, f)
-    previewPanel:SetSize(260, 400)
-    previewPanel:SetPoint("TOPRIGHT", -24, -86)
-    previewPanel:SetBackdrop({
-        bgFile = "Interface\\AchievementFrame\\UI-Achievement-Parchment-Horizontal",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        edgeSize = 12,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    previewPanel:SetBackdropColor(0.15, 0.05, 0.05, 0.9)
-
-    nameText = previewPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    nameText:SetPoint("TOP", 0, -14)
-    nameText:SetWidth(240)
-
-    idText = previewPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    idText:SetPoint("TOP", nameText, "BOTTOM", 0, -4)
-    idText:SetTextColor(1, 0.82, 0)
-
-modelFrame = CreateFrame("PlayerModel", "MorphinatorModelFrame", previewPanel)
-    modelFrame:SetSize(220, 230)
-    modelFrame:SetPoint("TOP", idText, "BOTTOM", 0, -10)
-    modelFrame:EnableMouse(true)
-    modelFrame:EnableMouseWheel(true)
-
-    -- Rotation du modèle avec la souris
-    modelFrame:SetScript("OnMouseDown", function(self, button)
-        if button == "LeftButton" then
-            self.rotating = true
-            self.lastX = GetCursorPosition()
-        end
-    end)
-    modelFrame:SetScript("OnMouseUp", function(self, button)
-        if button == "LeftButton" then
-            self.rotating = false
-        end
-    end)
-    modelFrame:SetScript("OnUpdate", function(self)
-        if self.rotating then
-            local x = GetCursorPosition()
-            local delta = (x - (self.lastX or x)) * 0.01
-            self:SetFacing((self:GetFacing() or 0) + delta)
-            self.lastX = x
-        end
-    end)
-
-    -- Zoom avec la molette de la souris
-    modelFrame:SetScript("OnMouseWheel", function(self, delta)
-        local zoom = (self.zoomLevel or 1) - (delta * 0.1)
-        if zoom < 0.3 then zoom = 0.3 end
-        if zoom > 3.0 then zoom = 3.0 end
-        self.zoomLevel = zoom
-        self:SetCamDistanceScale(zoom)
-    end)
-
-    local morphButton = CreateFrame("Button", nil, previewPanel, "UIPanelButtonTemplate")
-    morphButton:SetSize(160, 26)
-    morphButton:SetPoint("BOTTOM", 0, 26)
-    morphButton:SetText("Morph now!")
-    morphButton:SetScript("OnClick", function()
-        if selectedEntry then
-            SendChatMessage(".morph " .. selectedEntry.id, "SAY")
-        end
-    end)
-
-    local demorphButton = CreateFrame("Button", nil, previewPanel, "UIPanelButtonTemplate")
-    demorphButton:SetSize(160, 22)
-    demorphButton:SetPoint("BOTTOM", morphButton, "TOP", 0, 4)
-    demorphButton:SetText("Un-morph")
-    demorphButton:SetScript("OnClick", function()
-        SendChatMessage(".demorph", "SAY")
-    end)
-
     return f
 end
 
@@ -336,22 +301,36 @@ end
 -- ============================================================
 function Morphinator_InitUI()
     if mainFrame then return end
-    mainFrame = CreateMainFrame()
-    BuildSortedList()
-    RefreshDisplayList()
-    UpdateListRows()
+    local ok, err = pcall(function()
+        mainFrame = CreateMainFrame()
+        BuildSortedList()
+        RefreshDisplayList()
+        UpdateListRows()
+    end)
+    if not ok then
+        print("|cffff0000[Morphinator] InitUI error:|r", err)
+    end
 end
 
 function Morphinator_ToggleUI()
     if not mainFrame then
         Morphinator_InitUI()
     end
+    if not mainFrame then
+        print("|cffff0000[Morphinator] mainFrame not found after InitUI, aborting.|r")
+        return
+    end
     if mainFrame:IsShown() then
         mainFrame:Hide()
     else
-        BuildSortedList()
-        RefreshDisplayList()
-        UpdateListRows()
+        local ok, err = pcall(function()
+            BuildSortedList()
+            RefreshDisplayList()
+            UpdateListRows()
+        end)
+        if not ok then
+            print("|cffff0000[Morphinator] Error before Show:|r", err)
+        end
         mainFrame:Show()
     end
 end

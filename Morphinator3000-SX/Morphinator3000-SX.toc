@@ -2,9 +2,13 @@
 ## Title: |TInterface\AddOns\Morphinator3000-SX\sheep:0|t |cff00ccff<|r|cffff2020Morphinator|r|cff00ccff>|r |cffa335ee3000-SX|r
 ## Notes: Morphing Tool for lazy GM's
 ## Author: Jadaiah
-## Version: 1.2.0
+## Version: 1.3.0
 ## SavedVariables: MorphinatorDB
 
 Data.lua
+Data_NPC1.lua
+Data_NPC2.lua
+Data_NPC3.lua
 Core.lua
+Options.lua
 UI.lua
